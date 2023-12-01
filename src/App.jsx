@@ -10,6 +10,8 @@ function App() {
   const [sessionViews, setSessionViews] = useState(Number(sessionStorage.getItem("sessionViews")));
   const [cookieViews, setCookieViews] = useState(Number(Cookies.get("pageViews")) || 0);
 
+  const COOKIE_REFRESH_IN_SECONDS = 15;
+
   useEffect(() => {
     const updatedPageViews = pageViews + 1;
 
@@ -27,14 +29,44 @@ function App() {
   useEffect(() => {
     const updatedCookieViews = cookieViews + 1;
 
-    const FIFTEEN_SECONDS = 1 / 24 / 60 / 4; // 0.00017361111 days = 15 seconds
-
-    Cookies.set("pageViews", updatedCookieViews, { expires: FIFTEEN_SECONDS });
+    const expiryInDays = getExpiryInDays();
+    Cookies.set("pageViews", updatedCookieViews, { expires: expiryInDays });
 
     setCookieViews(updatedCookieViews);
   }, []);
-
   
+
+  /**
+   * Creates a pageViewsExpiry cookie that keeps track of when the pageViews cookie is going to expire
+   * 
+   * @returns the number of days in the future to expire the cookie , set by COOKIE_REFRESH_IN_SECONDS constant
+   */
+  const getExpiryInDays = () => {
+    let expiryTimestamp = Number(Cookies.get("pageViewsExpiry"));
+
+    const currentTimestamp = (new Date()).getTime();
+    
+    let secondsUntilExpiry;
+
+    /* 
+      If an expiry already exists, calculate the number of seconds away from expiry 
+      so that we can use that value for the expires attribute
+    */
+    if (expiryTimestamp) {
+      secondsUntilExpiry = (expiryTimestamp - currentTimestamp) / 1000;
+    } else {
+      secondsUntilExpiry = COOKIE_REFRESH_IN_SECONDS;
+      expiryTimestamp = currentTimestamp + (COOKIE_REFRESH_IN_SECONDS * 1000);
+    }
+
+    // Given secondsUntilExpiry, convert to number of days
+    const expiryInDays = 1 / 24 / 60 / (60 / secondsUntilExpiry);
+      
+    Cookies.set("pageViewsExpiry", expiryTimestamp, { expires: expiryInDays})
+    
+    return expiryInDays;
+  }
+
   const deleteSessionStorage = () => {
     sessionStorage.removeItem("sessionViews");
     
@@ -49,6 +81,7 @@ function App() {
 
   const deleteCookies = () => {
     Cookies.remove("pageViews");
+    
     setCookieViews(0);
   }
   
